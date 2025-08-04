@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { UserWithCompany } from '@/types'
 import { 
@@ -78,10 +79,12 @@ export function Sidebar({ user }: SidebarProps) {
       <div className="absolute bottom-0 w-64 p-4 bg-gray-50 border-t">
         <div className="flex items-center">
           <div className="flex-shrink-0">
-            <img
+            <Image
               className="h-8 w-8 rounded-full"
               src={user.imageUrl || `https://ui-avatars.com/api/?name=${user.firstName}+${user.lastName}&background=3b82f6&color=fff`}
               alt={`${user.firstName} ${user.lastName}`}
+              width={32}
+              height={32}
             />
           </div>
           <div className="ml-3">

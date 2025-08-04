@@ -18,10 +18,13 @@ export async function getCurrentUser(): Promise<UserProfileWithCompany | null> {
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     
     if (authError || !user) {
+      console.log('Auth error or no user:', authError?.message)
       return null
     }
 
-    // Hämta användarens profil med företagsinformation
+    console.log('Auth user found:', user.email)
+
+    // Nu använder vi vanliga RLS-policies (inga cirkulära referenser)
     const { data: userProfile, error: profileError } = await supabase
       .from('user_profiles')
       .select(`
@@ -33,9 +36,11 @@ export async function getCurrentUser(): Promise<UserProfileWithCompany | null> {
       .single()
 
     if (profileError || !userProfile) {
+      console.log('Profile error:', profileError?.message)
       return null
     }
 
+    console.log('User profile found:', userProfile.email)
     return userProfile as UserProfileWithCompany
   } catch (error) {
     console.error('Error getting current user:', error)

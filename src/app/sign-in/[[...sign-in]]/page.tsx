@@ -19,14 +19,15 @@ export default function SignInPage() {
     setMessage('')
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
       if (error) {
         setMessage(error.message)
-      } else {
+      } else if (data.user) {
+        // Navigera till dashboard efter lyckad inloggning
         window.location.href = '/dashboard'
       }
     } catch (error) {

@@ -1,0 +1,198 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Multi-tenant företagsmodell
+model Company {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique // För URL-friendly identifiering
+  domain    String?  // Valfritt för domän-baserad routing
+  settings  Json?    // Flexibel settings för företaget
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  users     User[]
+  leads     Lead[]
+  tags      Tag[]
+  emailLogs EmailLog[]
+
+  @@map("companies")
+}
+
+// Användarmodell med roller
+model User {
+  id        String   @id @default(cuid())
+  clerkId   String   @unique // Clerk user ID
+  email     String   @unique
+  firstName String?
+  lastName  String?
+  imageUrl  String?
+  role      UserRole @default(USER)
+  isActive  Boolean  @default(true) // Soft delete
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Company relation (multi-tenant)
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  // Relations
+  assignedLeads Lead[]     @relation("AssignedUser")
+  createdLeads  Lead[]     @relation("CreatedBy")
+  emailLogs     EmailLog[]
+  reminders     Reminder[]
+
+  @@map("users")
+}
+
+// Lead/kontakt modell
+model Lead {
+  id          String     @id @default(cuid())
+  firstName   String
+  lastName    String?
+  email       String?
+  phone       String?
+  company     String?
+  title       String?    // Jobbtitel
+  status      LeadStatus @default(NEW)
+  score       Int        @default(0) // Lead scoring 0-100
+  notes       String?    // Anteckningar
+  source      String?    // Var de kom ifrån
+  isActive    Boolean    @default(true) // Soft delete
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  lastContact DateTime?  // Senaste kontakt
+
+  // Company relation (multi-tenant)
+  companyId String
+  companyRef Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  // User relations
+  assignedToId String? // Vem som är tilldelad denna lead
+  assignedTo   User?   @relation("AssignedUser", fields: [assignedToId], references: [id])
+  createdById  String  // Vem som skapade denna lead
+  createdBy    User    @relation("CreatedBy", fields: [createdById], references: [id])
+
+  // Relations
+  tags      LeadTag[]
+  emailLogs EmailLog[]
+  reminders Reminder[]
+
+  @@map("leads")
+}
+
+// Taggmodell för kategorisering
+model Tag {
+  id    String @id @default(cuid())
+  name  String
+  color String @default("#3B82F6") // Hex color för UI
+
+  // Company relation (multi-tenant)
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  // Relations
+  leads LeadTag[]
+
+  @@unique([name, companyId]) // Unika taggar per företag
+  @@map("tags")
+}
+
+// Junction table för many-to-many mellan Lead och Tag
+model LeadTag {
+  leadId String
+  tagId  String
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([leadId, tagId])
+  @@map("lead_tags")
+}
+
+// E-postlogg för tracking
+model EmailLog {
+  id          String    @id @default(cuid())
+  subject     String
+  content     String
+  recipientEmail String
+  senderEmail String
+  status      EmailStatus @default(SENT)
+  trackingId  String    @unique // För tracking pixel
+  openedAt    DateTime? // När e-posten öppnades
+  openCount   Int       @default(0) // Antal gånger öppnad
+  sentAt      DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+
+  // Company relation (multi-tenant)
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  // Relations
+  leadId String?
+  lead   Lead?   @relation(fields: [leadId], references: [id])
+  sentById String
+  sentBy   User   @relation(fields: [sentById], references: [id])
+
+  @@map("email_logs")
+}
+
+// Påminnelser för uppföljning
+model Reminder {
+  id          String        @id @default(cuid())
+  title       String
+  description String?
+  dueDate     DateTime
+  status      ReminderStatus @default(PENDING)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Relations
+  leadId String
+  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@map("reminders")
+}
+
+// Enums
+enum UserRole {
+  USER  // Kan bara se sina egna leads
+  ADMIN // Kan se alla leads i företaget
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  PROPOSAL
+  NEGOTIATION
+  CLOSED_WON
+  CLOSED_LOST
+  INACTIVE
+}
+
+enum EmailStatus {
+  SENT
+  DELIVERED
+  OPENED
+  FAILED
+  BOUNCED
+}
+
+enum ReminderStatus {
+  PENDING
+  COMPLETED
+  OVERDUE
+}
